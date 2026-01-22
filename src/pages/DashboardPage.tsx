@@ -1,0 +1,181 @@
+import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import AdminLayout from '../components/AdminLayout';
+import { Copy, Check, Shield, Loader2 } from 'lucide-react';
+import { CreateOrgForm } from '../components/CreateOrgForm';
+import AnalyticsDashboard from '../components/dashboard/AnalyticsDashboard';
+import { TotalSalesCard } from '../components/dashboard/TotalSalesCard';
+import { FraudAlertCard } from '../components/dashboard/FraudAlertCard';
+import { StockRiskCard } from '../components/dashboard/StockRiskCard';
+import { SalesTrendChart } from '../components/dashboard/SalesTrendChart';
+import { FraudTrendChart } from '../components/dashboard/FraudTrendChart';
+
+const DashboardPage: React.FC = () => {
+  const { user, logout, loading, isOwner } = useAuth();
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Redirect if not authenticated
+  if (!loading && !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
+
+  const handleLogoutClick = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+          <span className="text-gray-600 dark:text-gray-300">Loading dashboard...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const organization = user.organization;
+  const orgCode = organization?.org_code || 'ORG-LOADING';
+  const passkey = organization?.passkey || 'PASS-LOADING';
+
+  return (
+    <AdminLayout onLogout={handleLogoutClick} userName={user.name} orgName={user.organization?.name}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Organization Creation Flow (No Org) */}
+        {isOwner && !organization && (
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                Welcome to Zentra, {user.name}
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Let's get your business set up.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  Create Your Organization
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                  To get started, please create an organization. This will generate your unique organization code and passkey.
+                </p>
+              </div>
+
+              <CreateOrgForm userId={user.id} />
+            </div>
+          </div>
+        )}
+
+        {/* Main Dashboard (Has Org) */}
+        {organization && (
+          <div className="space-y-8">
+            {/* Header */}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Dashboard
+              </h1>
+              <p className="text-gray-500 dark:text-gray-400">
+                Welcome back, {user.name}
+              </p>
+            </div>
+
+            {/* Real-time Sales Card & Alerts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+              <TotalSalesCard orgId={organization.id} />
+              <FraudAlertCard orgId={organization.id} />
+              <StockRiskCard orgId={organization.id} />
+            </div>
+
+            {/* Visual Analytics Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <SalesTrendChart orgId={organization.id} />
+              <FraudTrendChart orgId={organization.id} />
+            </div>
+
+            {/* Analytics Dashboard - The "Big Data" View */}
+            <AnalyticsDashboard orgId={organization.id} isOwner={isOwner} userId={user.id} />
+
+            {/* Owner Section: Credentials (Collapsible or Bottom) */}
+            {isOwner && (
+              <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <Shield className="h-5 w-5 mr-2 text-blue-600" />
+                  Organization Credentials
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Organization Code Card */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col justify-between">
+                    <div>
+                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Organization Code</span>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <code className="text-xl font-mono font-bold text-gray-900 dark:text-white">
+                          {orgCode}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(orgCode, 'orgCode')}
+                          className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-blue-600"
+                          title="Copy Code"
+                        >
+                          {copiedField === 'orgCode' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Share this with your staff to join.</p>
+                  </div>
+
+                  {/* Passkey Card */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col justify-between">
+                    <div>
+                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Passkey</span>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <code className="text-xl font-mono font-bold text-gray-900 dark:text-white">
+                          {passkey}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(passkey, 'passkey')}
+                          className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-teal-600"
+                          title="Copy Passkey"
+                        >
+                          {copiedField === 'passkey' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-red-500 mt-2">Keep this secret. Reroll if compromised.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default DashboardPage;
