@@ -10,6 +10,7 @@ import { FraudAlertCard } from '../components/dashboard/FraudAlertCard';
 import { StockRiskCard } from '../components/dashboard/StockRiskCard';
 import { SalesTrendChart } from '../components/dashboard/SalesTrendChart';
 import { FraudTrendChart } from '../components/dashboard/FraudTrendChart';
+import { FreeTrialBanner } from '../components/dashboard/FreeTrialBanner';
 
 const DashboardPage: React.FC = () => {
   const { user, logout, loading, isOwner } = useAuth();
@@ -19,6 +20,7 @@ const DashboardPage: React.FC = () => {
   if (!loading && !user) {
     return <Navigate to="/login" replace />;
   }
+
 
   const copyToClipboard = async (text: string, field: string) => {
     try {
@@ -103,6 +105,8 @@ const DashboardPage: React.FC = () => {
                 Welcome back, {user.name}
               </p>
             </div>
+
+            <FreeTrialBanner createdAt={organization.created_at} />
 
             {/* Real-time Sales Card & Alerts */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart, Users, Settings, BarChart3, LogOut, Menu, X, Package, Receipt } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +14,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout, userName,
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { user } = useAuth();
   const location = useLocation();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'manager'] },
@@ -111,6 +119,24 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout, userName,
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Top Header Bar */}
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 h-16 flex items-center justify-end px-6 shadow-sm z-10">
+          <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                {currentTime.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {currentTime.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </p>
+            </div>
+            <div className="h-8 w-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
+              <BarChart3 className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+            </div>
+          </div>
+        </header>
+
         <div className="flex-1 overflow-auto">
           {children}
         </div>
