@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Azure Functions local config — contains real secrets, never commit
+api/local.settings.json
