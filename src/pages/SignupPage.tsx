@@ -6,6 +6,7 @@ import { ShoppingCart, Eye, EyeOff, Loader2, AlertCircle, Check } from 'lucide-r
 
 interface SignupFormData {
   fullName: string;
+  shopName: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -14,6 +15,7 @@ interface SignupFormData {
 
 interface FieldErrors {
   fullName: string;
+  shopName: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -25,6 +27,7 @@ const SignupPage: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const [formData, setFormData] = useState<SignupFormData>({
     fullName: '',
+    shopName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -36,6 +39,7 @@ const SignupPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({
     fullName: '',
+    shopName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -62,6 +66,7 @@ const SignupPage: React.FC = () => {
   const validateForm = (): boolean => {
     const errors: FieldErrors = {
       fullName: '',
+      shopName: '',
       email: '',
       password: '',
       confirmPassword: '',
@@ -73,6 +78,10 @@ const SignupPage: React.FC = () => {
       errors.fullName = 'Full name is required';
     } else if (formData.fullName.trim().length < 2) {
       errors.fullName = 'Full name must be at least 2 characters';
+    }
+
+    if (!formData.shopName.trim()) {
+      errors.shopName = 'Shop name is required';
     }
 
     if (!formData.email) {
@@ -98,7 +107,7 @@ const SignupPage: React.FC = () => {
     }
 
     setFieldErrors(errors);
-    return !errors.fullName && !errors.email && !errors.password &&
+    return !errors.fullName && !errors.shopName && !errors.email && !errors.password &&
            !errors.confirmPassword && !errors.agreeToTerms;
   };
 
@@ -115,7 +124,8 @@ const SignupPage: React.FC = () => {
       const { data, error } = await azureAuth.signup(
         formData.email,
         formData.password,
-        formData.fullName
+        formData.fullName,
+        formData.shopName
       );
 
       if (error || !data) {
@@ -271,6 +281,28 @@ const SignupPage: React.FC = () => {
               {fieldErrors.fullName && (
                 <p className="mt-2 text-sm text-red-600 dark:text-red-400">
                   {fieldErrors.fullName}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="shopName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Shop Name
+              </label>
+              <input
+                id="shopName"
+                name="shopName"
+                type="text"
+                value={formData.shopName}
+                onChange={handleInputChange}
+                className={`w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors ${
+                  fieldErrors.shopName ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                }`}
+                placeholder="Enter your shop or organization name"
+              />
+              {fieldErrors.shopName && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                  {fieldErrors.shopName}
                 </p>
               )}
             </div>
