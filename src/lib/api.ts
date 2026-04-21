@@ -154,9 +154,9 @@ export interface AnalyticsData {
 // ─── Auth API ─────────────────────────────────────────────────────────────────
 
 export const azureAuth = {
-  async signup(email: string, password: string, name: string) {
+  async signup(email: string, password: string, name: string, shopName: string) {
     const result = await request<{ token: string; user: AuthUser }>('POST', '/auth/signup', {
-      email, password, name
+      email, password, name, shopName
     });
     if (result.data) {
       setToken(result.data.token);
