@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, TrendingUp, BarChart3, ShoppingCart, Shield, Rocket } from 'lucide-react';
 import { motion, Variants, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import Hero3D from './Hero3D';
+const Hero3D = lazy(() => import('./Hero3D'));
 import { MagneticButton } from './ui/MagneticButton';
 import { TextReveal } from './ui/TextReveal';
 
@@ -61,7 +61,9 @@ const Hero: React.FC = () => {
   return (
     <section id="home" className="relative pt-20 pb-16 overflow-hidden min-h-[600px] flex items-center" >
       {/* 3D Background */}
-      <Hero3D mouseX={mouseX} mouseY={mouseY} />
+      <Suspense fallback={<div className="absolute inset-0" />}>
+        <Hero3D mouseX={mouseX} mouseY={mouseY} />
+      </Suspense>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
