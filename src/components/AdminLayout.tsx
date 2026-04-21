@@ -25,6 +25,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout, userName,
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'manager'] },
+    { path: '/admin/hadoop-analytics', label: 'Hadoop Analytics', icon: BarChart3, roles: ['admin', 'manager'] },
     { path: '/admin/billing', label: 'Billing / POS', icon: Receipt, roles: ['admin', 'manager', 'cashier'] },
     { path: '/admin/inventory', label: 'Inventory', icon: Package, roles: ['admin', 'manager', 'inventory'] },
     { path: '/admin/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'] },

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { TrendingUp, RefreshCw, AlertCircle } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
+import { GlassCard } from '../ui/GlassCard';
 
 interface TotalSalesCardProps {
     orgId: string;
@@ -14,28 +15,13 @@ export const TotalSalesCard: React.FC<TotalSalesCardProps> = ({ orgId }) => {
     useEffect(() => {
         let mounted = true;
 
-        // 1. Initial Fetch
         const fetchSales = async () => {
             try {
                 setLoading(true);
-                const { data, error } = await supabase
-                    .from('ml_metrics')
-                    .select('value')
-                    .eq('organization_id', orgId)
-                    .eq('metric_type', 'total_sales')
-                    .single();
-
-                if (error) {
-                    // If no row found, it might be fine (0 sales), but if query failed, log it.
-                    // .single() returns error code PGRST116 if no rows.
-                    if (error.code === 'PGRST116') {
-                        if (mounted) setSales(0);
-                    } else {
-                        throw error;
-                    }
-                } else {
-                    if (mounted) setSales(data?.value || 0);
-                }
+                const { data, error } = await azureApi.getAnalytics(orgId);
+                if (error) throw new Error(error);
+                const total = parseFloat(data?.sales?.total_revenue || '0');
+                if (mounted) setSales(total);
             } catch (err) {
                 console.error('Error fetching sales:', err);
                 if (mounted) setError('Failed to load sales data');
@@ -45,49 +31,17 @@ export const TotalSalesCard: React.FC<TotalSalesCardProps> = ({ orgId }) => {
         };
 
         fetchSales();
-
-        // 2. Realtime Subscription
-        const channel = supabase
-            .channel('realtime-sales-card')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'ml_metrics',
-                    filter: `organization_id=eq.${orgId}`,
-                },
-                (payload) => {
-                    // Check if the updated row is for total_sales
-                    if (payload.new.metric_type === 'total_sales') {
-                        setSales(payload.new.value);
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'ml_metrics',
-                    filter: `organization_id=eq.${orgId}`,
-                },
-                (payload) => {
-                    if (payload.new.metric_type === 'total_sales') {
-                        setSales(payload.new.value);
-                    }
-                }
-            )
-            .subscribe();
+        // Poll every 30 seconds for near-realtime updates
+        const interval = setInterval(fetchSales, 30000);
 
         return () => {
             mounted = false;
-            supabase.removeChannel(channel);
+            clearInterval(interval);
         };
     }, [orgId]);
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
+        <GlassCard className="p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
             {/* Decorative Gradient Background */}
             <div className="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-indigo-50/50 to-transparent dark:from-indigo-900/10 pointer-events-none group-hover:w-32 transition-all duration-500" />
 
@@ -107,7 +61,7 @@ export const TotalSalesCard: React.FC<TotalSalesCardProps> = ({ orgId }) => {
                         ) : error ? (
                             <div className="flex items-center text-red-500 text-sm">
                                 <AlertCircle className="h-4 w-4 mr-1" />
-                                Error
+                                {error}
                             </div>
                         ) : (
                             <h3 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -126,6 +80,6 @@ export const TotalSalesCard: React.FC<TotalSalesCardProps> = ({ orgId }) => {
                 <RefreshCw className="h-3 w-3 mr-1" />
                 Updates automatically in real-time
             </div>
-        </div>
+        </GlassCard>
     );
 };

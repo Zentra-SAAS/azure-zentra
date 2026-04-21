@@ -9,7 +9,8 @@ import {
     ResponsiveContainer,
     Cell
 } from 'recharts';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
+import { GlassCard } from '../ui/GlassCard';
 import { ShieldAlert } from 'lucide-react';
 
 interface FraudTrendChartProps {
@@ -32,26 +33,26 @@ export const FraudTrendChart: React.FC<FraudTrendChartProps> = ({ orgId }) => {
     useEffect(() => {
         let mounted = true;
 
-        // Initial fetch to get ONE point (current state)
-        const fetchInitial = async () => {
+        const fetchData = async () => {
             try {
-                const { data: metric } = await supabase
-                    .from('ml_metrics')
-                    .select('value, created_at')
-                    .eq('organization_id', orgId)
-                    .eq('metric_type', 'fraud_alerts')
-                    .single();
+                const { data: analytics, error } = await azureApi.getAnalytics(orgId);
+                if (error) throw new Error(error);
 
-                if (metric && mounted) {
-                    const date = new Date();
-                    setData([{
-                        time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        value: metric.value,
-                        fullDate: date.toLocaleString()
-                    }]);
-                } else if (mounted) {
-                    setData([]);
-                }
+                const trend = analytics?.sales_trend || [];
+                const amounts = trend.map((t: { revenue: string }) => parseFloat(t.revenue));
+                const avg = amounts.length ? amounts.reduce((a: number, b: number) => a + b, 0) / amounts.length : 0;
+                const threshold = Math.max(avg * 3, 1000);
+
+                const trendData = trend.slice(0, 15).map((t: { date: string; revenue: string }) => {
+                    const isSuspicious = parseFloat(t.revenue) > threshold;
+                    return {
+                        time: new Date(t.date).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+                        value: isSuspicious ? 1 : 0,
+                        fullDate: new Date(t.date).toLocaleDateString()
+                    };
+                });
+
+                if (mounted) setData(trendData);
             } catch (e) {
                 console.error(e);
             } finally {
@@ -59,42 +60,12 @@ export const FraudTrendChart: React.FC<FraudTrendChartProps> = ({ orgId }) => {
             }
         };
 
-        fetchInitial();
-
-        const channel = supabase
-            .channel('realtime-fraud-trend')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*', // Listen to INSERT and UPDATE
-                    schema: 'public',
-                    table: 'ml_metrics',
-                    filter: `organization_id=eq.${orgId}`,
-                },
-                (payload) => {
-                    if (payload.new && (payload.new as any).metric_type === 'fraud_alerts') {
-                        const newVal = (payload.new as any).value;
-                        const date = new Date();
-                        const newPoint = {
-                            time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            value: newVal,
-                            fullDate: date.toLocaleString()
-                        };
-
-                        setData(prev => {
-                            // Keep last 15 points
-                            const newData = [...prev, newPoint];
-                            if (newData.length > 15) return newData.slice(newData.length - 15);
-                            return newData;
-                        });
-                    }
-                }
-            )
-            .subscribe();
+        fetchData();
+        const interval = setInterval(fetchData, 30000);
 
         return () => {
             mounted = false;
-            supabase.removeChannel(channel);
+            clearInterval(interval);
         };
     }, [orgId]);
 
@@ -103,7 +74,7 @@ export const FraudTrendChart: React.FC<FraudTrendChartProps> = ({ orgId }) => {
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <GlassCard className="p-6">
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
@@ -132,9 +103,9 @@ export const FraudTrendChart: React.FC<FraudTrendChartProps> = ({ orgId }) => {
                         />
                         <Tooltip
                             cursor={{ fill: 'transparent' }}
-                            contentStyle={{ backgroundColor: '#1F2937', color: '#F3F4F6', borderRadius: '8px', border: 'none' }}
+                            contentStyle={{ backgroundColor: '#1F2937', color: '#F3F4F6', borderRadius: '8px', border: 'none', backdropFilter: 'blur(5px)' }}
                             itemStyle={{ color: '#F3F4F6' }}
-                            labelFormatter={(label, payload) => payload[0]?.payload.fullDate}
+                            labelFormatter={(_, payload) => payload[0]?.payload.fullDate}
                         />
                         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                             {data.map((entry, index) => (
@@ -144,6 +115,6 @@ export const FraudTrendChart: React.FC<FraudTrendChartProps> = ({ orgId }) => {
                     </BarChart>
                 </ResponsiveContainer>
             </div>
-        </div>
+        </GlassCard>
     );
 };

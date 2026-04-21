@@ -1,6 +1,7 @@
 import React from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { format, addDays, differenceInDays, parseISO } from 'date-fns';
+import { GlassCard } from '../ui/GlassCard';
 
 interface FreeTrialBannerProps {
     createdAt: string;
@@ -50,10 +51,10 @@ export const FreeTrialBanner: React.FC<FreeTrialBannerProps> = ({ createdAt }) =
     }
 
     return (
-        <div className={`rounded-xl border ${borderClass} ${bgClass} p-4 mb-6 shadow-sm`}>
+        <GlassCard className={`border ${borderClass} ${bgClass} p-4 mb-6 !bg-opacity-50`}>
             <div className="flex items-start md:items-center justify-between flex-col md:flex-row gap-4">
                 <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-lg bg-white dark:bg-gray-800 ${iconColor} shadow-sm`}>
+                    <div className={`p-2 rounded-lg bg-white/50 dark:bg-gray-800/50 ${iconColor} shadow-sm backdrop-blur-sm`}>
                         {isExpired ? <AlertTriangle className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
                     </div>
                     <div>
@@ -69,10 +70,10 @@ export const FreeTrialBanner: React.FC<FreeTrialBannerProps> = ({ createdAt }) =
                     </div>
                 </div>
 
-                <div className={`flex items-center text-sm font-medium ${textClass} bg-white/50 dark:bg-black/20 px-3 py-1.5 rounded-lg`}>
+                <div className={`flex items-center text-sm font-medium ${textClass} bg-white/40 dark:bg-black/20 px-3 py-1.5 rounded-lg backdrop-blur-sm`}>
                     <span>Trial ends: {format(endDate, 'MMM do, yyyy')}</span>
                 </div>
             </div>
-        </div>
+        </GlassCard>
     );
 };

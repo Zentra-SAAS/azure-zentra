@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
 import AdminLayout from '../../components/AdminLayout';
 import { Plus, Trash2, Mail, Shield, Loader2, AlertCircle } from 'lucide-react';
 
@@ -38,27 +38,21 @@ const EmployeesPage: React.FC = () => {
   }, [user?.organization_id, isOwner]);
 
   const fetchShops = async () => {
-    const { data } = await supabase.from('shops').select('id, name');
-    if (data) setShops(data);
+    const { data } = await azureApi.getShops();
+    if (data) setShops(data.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })));
   };
 
   const fetchEmployees = async () => {
+    if (!user?.organization_id) return;
     try {
       setIsLoading(true);
-      // Select with branch name join if possible, or just raw
-      const { data, error: err } = await supabase
-        .from('users')
-        .select('id, name, email, role, user_code, created_at, branch_id')
-        .eq('organization_id', user?.organization_id)
-        .neq('id', user?.id);
-
-      if (err) throw err;
-      // @ts-ignore
-      setEmployees(data || []);
+      const { data, error: err } = await azureApi.getUsers(user.organization_id);
+      if (err) throw new Error(err);
+      setEmployees((data || []).filter((e: Employee) => e.id !== user?.id));
       setError('');
     } catch (err) {
       console.error('Error fetching employees:', err);
-      setError('Failed to load employees: ' + ((err as any).message || 'Unknown error'));
+      setError('Failed to load employees');
     } finally {
       setIsLoading(false);
     }
@@ -66,31 +60,17 @@ const EmployeesPage: React.FC = () => {
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user?.organization_id) return;
     setIsSubmitting(true);
-
     try {
-      // Generate a random 6-digit user code
-      const userCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-      // Determine branch_id:
-      // If Owner, use selected branch.
-      // If Manager (future proofing), use their own branch.
-      // For now this page is owner only per line 26 check, so use form data.
-      const targetBranchId = formData.branch_id || null;
-
-      const { error: err } = await supabase
-        .from('users')
-        .insert({
-          email: formData.email,
-          name: formData.name,
-          role: formData.role,
-          organization_id: user?.organization_id,
-          branch_id: targetBranchId,
-          user_code: userCode
-        });
-
-      if (err) throw err;
-
+      const { error: err } = await azureApi.createUser({
+        name: formData.name,
+        email: formData.email,
+        role: formData.role as Employee['role'],
+        org_id: user.organization_id,
+        branch_id: formData.branch_id || undefined
+      });
+      if (err) throw new Error(err);
       setFormData({ name: '', email: '', role: 'manager', branch_id: '' });
       setShowForm(false);
       await fetchEmployees();
@@ -104,14 +84,9 @@ const EmployeesPage: React.FC = () => {
 
   const handleDeleteEmployee = async (employeeId: string) => {
     if (!confirm('Are you sure you want to remove this employee?')) return;
-
     try {
-      const { error: err } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', employeeId);
-
-      if (err) throw err;
+      const { error: err } = await azureApi.deleteUser(employeeId);
+      if (err) throw new Error(err);
       await fetchEmployees();
     } catch (err) {
       console.error('Error deleting employee:', err);

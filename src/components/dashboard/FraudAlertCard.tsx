@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle, Info } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
+import { GlassCard } from '../ui/GlassCard';
 
 interface FraudAlertCardProps {
     orgId: string;
@@ -22,55 +23,44 @@ export const FraudAlertCard: React.FC<FraudAlertCardProps> = ({ orgId }) => {
     useEffect(() => {
         let mounted = true;
 
-        // 1. Initial Fetch
+        // 1. Initial Fetch & JS Analytics
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const { data, error } = await supabase
-                    .from('ml_metrics')
-                    .select('value, meta')
-                    .eq('organization_id', orgId)
-                    .eq('metric_type', 'fraud_alerts')
-                    .single();
+                const { data: analytics, error } = await azureApi.getAnalytics(orgId);
+                if (error) throw new Error(error);
 
-                if (error) {
-                    if (error.code === 'PGRST116') {
-                        if (mounted) setData({ value: 0, meta: {} });
-                    } else {
-                        console.error('Error fetching fraud alerts:', error);
-                    }
-                } else {
-                    if (mounted) setData(data as FraudData);
+                const trend = analytics?.sales_trend || [];
+                const amounts = trend.map((t: { revenue: string }) => parseFloat(t.revenue));
+                const avg = amounts.length ? amounts.reduce((a: number, b: number) => a + b, 0) / amounts.length : 0;
+                const threshold = Math.max(avg * 3, 1000);
+                const suspicious = amounts.filter((a: number) => a > threshold);
+
+                if (mounted) {
+                    setData({
+                        value: suspicious.length,
+                        meta: {
+                            average_bill: Math.round(avg),
+                            threshold_used: Math.round(threshold),
+                            details: suspicious.slice(0, 5).map((amt: number) =>
+                                `Day revenue ₹${amt.toFixed(0)} exceeds alert threshold`
+                            )
+                        }
+                    });
                 }
+            } catch (error) {
+                console.error('Error fetching bills for fraud analysis:', error);
             } finally {
                 if (mounted) setLoading(false);
             }
         };
 
         fetchData();
-
-        // 2. Realtime Subscription
-        const channel = supabase
-            .channel('realtime-fraud-card')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'ml_metrics',
-                    filter: `organization_id=eq.${orgId}`,
-                },
-                (payload) => {
-                    if (payload.new && (payload.new as any).metric_type === 'fraud_alerts') {
-                        setData(payload.new as FraudData);
-                    }
-                }
-            )
-            .subscribe();
+        const interval = setInterval(fetchData, 30000);
 
         return () => {
             mounted = false;
-            supabase.removeChannel(channel);
+            clearInterval(interval);
         };
     }, [orgId]);
 
@@ -82,9 +72,9 @@ export const FraudAlertCard: React.FC<FraudAlertCardProps> = ({ orgId }) => {
     const isSafe = alertCount === 0;
 
     return (
-        <div className={`rounded-xl shadow-sm border p-6 transition-all duration-300 ${isSafe
-                ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/50'
+        <GlassCard className={`p-6 transition-all duration-300 ${isSafe
+            ? ''
+            : '!bg-red-50/70 dark:!bg-red-900/20 !border-red-500/30'
             }`}>
             <div className="flex justify-between items-start">
                 <div>
@@ -129,6 +119,6 @@ export const FraudAlertCard: React.FC<FraudAlertCardProps> = ({ orgId }) => {
                     </div>
                 </div>
             </div>
-        </div>
+        </GlassCard>
     );
 };

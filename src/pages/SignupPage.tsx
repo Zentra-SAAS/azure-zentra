@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { azureAuth } from '../lib/api';
 import { ShoppingCart, Eye, EyeOff, Loader2, AlertCircle, Check } from 'lucide-react';
 
 interface SignupFormData {
@@ -112,61 +112,18 @@ const SignupPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            name: formData.fullName,
-            role: 'admin'
-          },
-          emailRedirectTo: `${window.location.origin}/dashboard`
-        }
-      });
+      const { data, error } = await azureAuth.signup(
+        formData.email,
+        formData.password,
+        formData.fullName
+      );
 
-      if (authError) {
+      if (error || !data) {
         setFieldErrors(prev => ({
           ...prev,
-          general: authError.message || 'Registration failed. Please try again.'
+          general: error || 'Registration failed. Please try again.'
         }));
         return;
-      }
-
-      if (!authData.user?.id) {
-        setFieldErrors(prev => ({
-          ...prev,
-          general: 'Registration failed. Please try again.'
-        }));
-        return;
-      }
-
-      try {
-        await supabase
-          .from('users')
-          .insert({
-            id: authData.user.id,
-            email: formData.email,
-            name: formData.fullName,
-            role: 'admin'
-          });
-
-        const { data: shopData } = await supabase
-          .from('shops')
-          .insert({
-            name: `${formData.fullName}'s Organization`,
-            manager_id: authData.user.id
-          })
-          .select()
-          .single();
-
-        if (shopData) {
-          await supabase
-            .from('users')
-            .update({ organization_id: shopData.id })
-            .eq('id', authData.user.id);
-        }
-      } catch (dbError) {
-        console.error('Database setup error:', dbError);
       }
 
       setSignupSuccess(true);
@@ -230,7 +187,7 @@ const SignupPage: React.FC = () => {
 
   if (signupSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-teal-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center py-12 px-4">
+      <div className="min-h-screen bg-gradient-to-br from-violet-50 to-pink-50 dark:from-gray-950 dark:to-indigo-950 flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
             <div className="flex justify-center mb-4">
@@ -249,7 +206,7 @@ const SignupPage: React.FC = () => {
 
             <Link
               to="/login"
-              className="inline-flex items-center justify-center w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white font-medium rounded-lg transition-all duration-200"
+              className="inline-flex items-center justify-center w-full px-4 py-3 bg-gradient-to-r from-violet-600 to-pink-500 hover:from-violet-700 hover:to-pink-600 text-white font-medium rounded-lg transition-all duration-200"
             >
               Go to Login
             </Link>
@@ -260,14 +217,14 @@ const SignupPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-teal-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 to-pink-50 dark:from-gray-950 dark:to-indigo-950 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex items-center justify-center space-x-2 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-violet-600 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
               <ShoppingCart className="h-7 w-7 text-white" />
             </div>
-            <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+            <span className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-pink-500 bg-clip-text text-transparent">
               Zentra
             </span>
           </div>
@@ -306,7 +263,7 @@ const SignupPage: React.FC = () => {
                 autoComplete="name"
                 value={formData.fullName}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+                className={`w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors ${
                   fieldErrors.fullName ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Enter your full name"
@@ -329,7 +286,7 @@ const SignupPage: React.FC = () => {
                 autoComplete="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+                className={`w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors ${
                   fieldErrors.email ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Enter your email address"
@@ -353,7 +310,7 @@ const SignupPage: React.FC = () => {
                   autoComplete="new-password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 pr-12 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors ${
                     fieldErrors.password ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="Enter a strong password"
@@ -406,7 +363,7 @@ const SignupPage: React.FC = () => {
                   autoComplete="new-password"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 pr-12 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors ${
                     fieldErrors.confirmPassword ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="Confirm your password"
@@ -437,11 +394,11 @@ const SignupPage: React.FC = () => {
                 type="checkbox"
                 checked={formData.agreeToTerms}
                 onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 text-violet-600 focus:ring-violet-500 border-gray-300 rounded"
               />
               <label htmlFor="agreeToTerms" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
                 I agree to the{' '}
-                <a href="#" className="text-blue-600 dark:text-blue-400 hover:underline">
+                <a href="#" className="text-violet-600 dark:text-violet-400 hover:underline">
                   Terms and Conditions
                 </a>
               </label>
@@ -455,7 +412,7 @@ const SignupPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg"
+              className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-violet-600 to-pink-500 hover:from-violet-700 hover:to-pink-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg"
             >
               {loading ? (
                 <div className="flex items-center space-x-2">
@@ -471,7 +428,7 @@ const SignupPage: React.FC = () => {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Already have an account?{' '}
-              <Link to="/login" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+              <Link to="/login" className="text-violet-600 dark:text-violet-400 hover:underline font-medium">
                 Sign In
               </Link>
             </p>

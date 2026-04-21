@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { azureAuth } from '../lib/api';
 import { ShoppingCart, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
@@ -74,66 +74,19 @@ const LoginPage: React.FC = () => {
 
   const handleJoin = async () => {
     try {
-      // 1. Verify Organization Credentials
-      // 1. Verify Organization Credentials
-      const { data: shopData, error: shopError } = await supabase
-        .rpc('verify_organization_credentials', {
-          p_org_code: formData.orgCode,
-          p_passkey: formData.passkey
-        })
-        .single();
-
-      const shop = shopData as { id: string } | null;
-
-      if (shopError || !shop) {
-        throw new Error('Invalid Organization Code or Passkey');
-      }
-
-      // 2. Verify User Code belongs to this organization
-      // 2. Verify User Code belongs to this organization
-      const { data: isValidUser, error: userError } = await supabase
-        .rpc('verify_user_code', {
-          p_user_code: formData.userCode,
-          p_org_id: shop.id
-        });
-
-      if (userError || !isValidUser) {
-        throw new Error('Invalid User Code or code does not belong to this organization');
-      }
-
-      // 3. Create Authentication User
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password
-      });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Failed to create account');
-
-      // 4. Claim Profile via RPC
-      const { data: rpcData, error: rpcError } = await supabase.rpc('claim_employee_profile', {
-        p_user_code: formData.userCode,
-        p_new_auth_id: authData.user.id,
-        p_email: formData.email
-      });
-
-      if (rpcError) throw rpcError;
-
-      // Check RPC response if it returned JSON
-      if (typeof rpcData === 'object' && rpcData !== null && 'success' in rpcData) {
-        if (!rpcData.success) {
-          throw new Error(rpcData.message || 'Failed to claim profile');
-        }
-      }
-
-      // 5. Login (if signUp didn't auto-login, or to refresh context)
-      // signUp usually auto-logs in, checking session
-      const { error: loginError } = await login(formData.email, formData.password);
-      if (loginError) throw new Error(loginError);
-
-    } catch (err: any) {
-      console.error('Join error:', err);
-      throw new Error(err.message || 'Failed to join organization');
+      const { data, error } = await azureAuth.joinOrganization(
+        formData.orgCode,
+        formData.passkey,
+        formData.userCode,
+        formData.email,
+        formData.password
+      );
+      if (error || !data) throw new Error(error || 'Failed to join organization');
+      // login context is refreshed via useEffect watching localStorage
+      window.location.href = '/dashboard';
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to join organization';
+      throw new Error(message);
     }
   };
 
@@ -185,15 +138,15 @@ const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-teal-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 to-pink-50 dark:from-gray-950 dark:to-indigo-950 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
           <div className="flex items-center justify-center space-x-2 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-violet-600 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
               <ShoppingCart className="h-7 w-7 text-white" />
             </div>
-            <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+            <span className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-pink-500 bg-clip-text text-transparent">
               Zentra
             </span>
           </div>
@@ -212,7 +165,7 @@ const LoginPage: React.FC = () => {
           <button
             onClick={() => setMode('login')}
             className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === 'login'
-              ? 'bg-blue-600 text-white shadow-md'
+              ? 'bg-violet-600 text-white shadow-md'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
           >
@@ -221,7 +174,7 @@ const LoginPage: React.FC = () => {
           <button
             onClick={() => setMode('join')}
             className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === 'join'
-              ? 'bg-blue-600 text-white shadow-md'
+              ? 'bg-violet-600 text-white shadow-md'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
           >
@@ -262,7 +215,7 @@ const LoginPage: React.FC = () => {
                       required={mode === 'join'}
                       value={formData.orgCode}
                       onChange={handleInputChange}
-                      className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.orgCode ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                      className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 ${fieldErrors.orgCode ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                         }`}
                       placeholder="ORG-..."
                     />
@@ -279,7 +232,7 @@ const LoginPage: React.FC = () => {
                       required={mode === 'join'}
                       value={formData.passkey}
                       onChange={handleInputChange}
-                      className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.passkey ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                      className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 ${fieldErrors.passkey ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                         }`}
                       placeholder="Secret Key"
                     />
@@ -299,7 +252,7 @@ const LoginPage: React.FC = () => {
                     value={formData.userCode}
                     onChange={handleInputChange}
                     maxLength={6}
-                    className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.userCode ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                    className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 ${fieldErrors.userCode ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                       }`}
                     placeholder="6-digit code provided by your manager"
                   />
@@ -332,7 +285,7 @@ const LoginPage: React.FC = () => {
                 required
                 value={formData.email}
                 onChange={handleInputChange}
-                className={`appearance-none relative block w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${fieldErrors.email
+                className={`appearance-none relative block w-full px-4 py-3 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors ${fieldErrors.email
                   ? 'border-red-300 dark:border-red-600'
                   : 'border-gray-300 dark:border-gray-600'
                   }`}
@@ -359,7 +312,7 @@ const LoginPage: React.FC = () => {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`appearance-none relative block w-full px-4 py-3 pr-12 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${fieldErrors.password
+                  className={`appearance-none relative block w-full px-4 py-3 pr-12 border rounded-lg placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-colors ${fieldErrors.password
                     ? 'border-red-300 dark:border-red-600'
                     : 'border-gray-300 dark:border-gray-600'
                     }`}
@@ -389,7 +342,7 @@ const LoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-violet-600 to-pink-500 hover:from-violet-700 hover:to-pink-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 hover:shadow-lg"
               >
                 {loading ? (
                   <div className="flex items-center space-x-2">

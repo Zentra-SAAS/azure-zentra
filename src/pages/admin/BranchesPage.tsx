@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
 import AdminLayout from '../../components/AdminLayout';
 import { Plus, Trash2, MapPin, Users, Loader2, AlertCircle } from 'lucide-react';
 
@@ -34,13 +34,9 @@ const BranchesPage: React.FC = () => {
   const fetchBranches = async () => {
     try {
       setIsLoading(true);
-      const { data, error: err } = await supabase
-        .from('shops')
-        .select('id, name, manager_id, created_at')
-        .eq('manager_id', user?.id);
-
-      if (err) throw err;
-      setBranches(data || []);
+      const { data, error: err } = await azureApi.getShops();
+      if (err) throw new Error(err);
+      setBranches((data || []) as Branch[]);
       setError('');
     } catch (err) {
       console.error('Error fetching branches:', err);
@@ -53,17 +49,9 @@ const BranchesPage: React.FC = () => {
   const handleAddBranch = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
     try {
-      const { error: err } = await supabase
-        .from('shops')
-        .insert({
-          name: formData.name,
-          manager_id: user?.id
-        });
-
-      if (err) throw err;
-
+      const { error: err } = await azureApi.createShop(formData.name);
+      if (err) throw new Error(err);
       setFormData({ name: '' });
       setShowForm(false);
       await fetchBranches();
@@ -76,17 +64,10 @@ const BranchesPage: React.FC = () => {
   };
 
   const handleDeleteBranch = async (branchId: string) => {
-    if (!confirm('Are you sure you want to delete this branch? This action cannot be undone.')) {
-      return;
-    }
-
+    if (!confirm('Are you sure you want to delete this branch? This action cannot be undone.')) return;
     try {
-      const { error: err } = await supabase
-        .from('shops')
-        .delete()
-        .eq('id', branchId);
-
-      if (err) throw err;
+      const { error: err } = await azureApi.deleteShop(branchId);
+      if (err) throw new Error(err);
       await fetchBranches();
     } catch (err) {
       console.error('Error deleting branch:', err);

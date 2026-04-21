@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import {
     Plus,
@@ -50,16 +50,10 @@ const InventoryPage: React.FC = () => {
 
     const fetchProducts = async () => {
         if (!user?.organization?.id) return;
-
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('products')
-                .select('*')
-                .eq('shop_id', user.organization.id)
-                .order('name');
-
-            if (error) throw error;
+            const { data, error } = await azureApi.getProducts(user.organization.id);
+            if (error) throw new Error(error);
             setProducts(data || []);
         } catch (error) {
             console.error('Error fetching products:', error);
@@ -71,7 +65,6 @@ const InventoryPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user?.organization?.id) return;
-
         try {
             const productData = {
                 name: formData.name,
@@ -83,20 +76,13 @@ const InventoryPage: React.FC = () => {
                 sku: formData.sku,
                 shop_id: user.organization.id
             };
-
             if (editingProduct) {
-                const { error } = await supabase
-                    .from('products')
-                    .update(productData)
-                    .eq('id', editingProduct.id);
-                if (error) throw error;
+                const { error } = await azureApi.updateProduct({ ...productData, id: editingProduct.id });
+                if (error) throw new Error(error);
             } else {
-                const { error } = await supabase
-                    .from('products')
-                    .insert(productData);
-                if (error) throw error;
+                const { error } = await azureApi.createProduct(productData);
+                if (error) throw new Error(error);
             }
-
             setIsModalOpen(false);
             resetForm();
             fetchProducts();
@@ -107,13 +93,9 @@ const InventoryPage: React.FC = () => {
 
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this product?')) return;
-
         try {
-            const { error } = await supabase
-                .from('products')
-                .delete()
-                .eq('id', id);
-            if (error) throw error;
+            const { error } = await azureApi.deleteProduct(id);
+            if (error) throw new Error(error);
             fetchProducts();
         } catch (error) {
             console.error('Error deleting product:', error);

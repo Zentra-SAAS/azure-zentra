@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Brain, TrendingUp, AlertTriangle, Target, CheckCircle, Zap, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Brain, TrendingUp, AlertTriangle, Target, Zap, BarChart3 } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 
 const AIInsightsPage: React.FC = () => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import {
     Search,
@@ -46,15 +46,10 @@ const BillingPage: React.FC = () => {
         if (!user?.organization?.id) return;
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('products')
-                .select('id, name, price, stock_quantity, sku')
-                .eq('shop_id', user.organization.id)
-                .gt('stock_quantity', 0) // Only show in-stock items
-                .order('name');
-
-            if (error) throw error;
-            setProducts(data || []);
+            const { data, error } = await azureApi.getProducts(user.organization.id);
+            if (error) throw new Error(error);
+            // Only show in-stock items
+            setProducts((data || []).filter((p: Product) => p.stock_quantity > 0));
         } catch (error) {
             console.error('Error fetching products:', error);
         } finally {
@@ -100,59 +95,23 @@ const BillingPage: React.FC = () => {
     const handleCheckout = async () => {
         if (cart.length === 0 || !user?.organization?.id) return;
         setProcessing(true);
-
         try {
-            const totalAmount = calculateTotal();
-
-            // 1. Create Bill
-            const { data: billData, error: billError } = await supabase
-                .from('bills')
-                .insert({
-                    shop_id: user.organization.id,
-                    cashier_id: user.id,
-                    total_amount: totalAmount,
-                    payment_method: paymentMethod,
-                    status: 'completed'
-                })
-                .select()
-                .single();
-
-            if (billError) throw billError;
-
-            // 2. Create Bill Items and Update Stock
-            const billItems = cart.map(item => ({
-                bill_id: billData.id,
-                product_id: item.id,
-                quantity: item.cartQuantity,
-                price_at_sale: item.price
-            }));
-
-            const { error: itemsError } = await supabase
-                .from('bill_items')
-                .insert(billItems);
-
-            if (itemsError) throw itemsError;
-
-            // 3. Decrement Stock (One by one for now, or use RPC for atomicity in future)
-            // 3. Decrement Stock using RPC
-            for (const item of cart) {
-                const { error: stockError } = await supabase.rpc('decrement_stock', {
-                    row_id: item.id,
-                    quantity: item.cartQuantity
-                });
-
-                if (stockError) {
-                    console.error('Stock update failed for', item.name, stockError);
-                    // Ideally we should rollback the bill here or mark it as 'failed'
-                    // For now, we'll log it. In a real app, this would be a single transaction on the DB side.
-                }
-            }
-
-            setLastBillId(billData.id);
+            const { data: billData, error } = await azureApi.createBill({
+                shop_id: user.organization.id,
+                cashier_id: user.id,
+                total_amount: calculateTotal(),
+                payment_method: paymentMethod,
+                items: cart.map(item => ({
+                    product_id: item.id,
+                    quantity: item.cartQuantity,
+                    price_at_sale: item.price
+                }))
+            });
+            if (error) throw new Error(error);
+            setLastBillId(billData?.id || null);
             setBillSuccess(true);
             setCart([]);
-            fetchProducts(); // Refresh stock
-
+            fetchProducts();
         } catch (error) {
             console.error('Checkout error:', error);
             alert('Checkout failed. Please try again.');

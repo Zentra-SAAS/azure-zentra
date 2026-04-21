@@ -6,7 +6,7 @@ import {
     Package, AlertCircle, ShoppingCart,
     DollarSign, Activity, ArrowUpRight, Calendar, Store, ChevronDown
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
 
 interface DashboardStats {
     totalRevenue: number;
@@ -63,22 +63,13 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ orgId, isOwner,
 
     const fetchShops = async () => {
         try {
-            const { data, error } = await supabase
-                .from('shops')
-                .select('id, name')
-                .eq('manager_id', userId);
-
+            const { data, error } = await azureApi.getShops();
+            if (error) throw new Error(error);
             if (data) {
-                setShops(data);
-                // If the passed orgId is in the list, default to it? Or 'all'?
-                // Let's default to 'all' if multiple shops exist, else the specific one.
-                if (data.length > 1) {
-                    setSelectedShopId('all');
-                } else if (data.length === 1) {
-                    setSelectedShopId(data[0].id);
-                } else {
-                    setSelectedShopId(orgId); // Fallback
-                }
+                setShops(data as Shop[]);
+                if (data.length > 1) setSelectedShopId('all');
+                else if (data.length === 1) setSelectedShopId(data[0].id);
+                else setSelectedShopId(orgId);
             }
         } catch (error) {
             console.error('Error fetching shops:', error);
@@ -89,99 +80,56 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ orgId, isOwner,
         try {
             setLoading(true);
 
-            let shopIdsToQuery: string[] = [];
+            const targetId = selectedShopId === 'all' ? orgId : selectedShopId;
+            if (!targetId) return;
 
-            if (selectedShopId === 'all') {
-                if (shops.length > 0) {
-                    shopIdsToQuery = shops.map(s => s.id);
-                } else {
-                    shopIdsToQuery = [orgId]; // Fallback
-                }
-            } else {
-                shopIdsToQuery = [selectedShopId];
-            }
+            // Fetch analytics and products in parallel
+            const [analyticsResult, productsResult] = await Promise.all([
+                azureApi.getAnalytics(targetId),
+                azureApi.getProducts(targetId)
+            ]);
 
-            if (shopIdsToQuery.length === 0) return;
+            const analytics = analyticsResult.data;
+            const products = productsResult.data || [];
 
-            // 1. Fetch Products Stats
-            const { data: products, error: productsError } = await supabase
-                .from('products')
-                .select('*')
-                .in('shop_id', shopIdsToQuery);
+            const totalProducts = products.length;
+            const lowStockCount = products.filter(
+                (p: { stock_quantity: number; low_stock_threshold: number }) =>
+                    p.stock_quantity <= (p.low_stock_threshold || 10)
+            ).length;
 
-            if (productsError) throw productsError;
+            const totalRevenue = parseFloat(analytics?.sales?.total_revenue || '0');
+            const totalOrders = parseInt(analytics?.sales?.total_bills || '0');
 
-            const totalProducts = products?.length || 0;
-            const lowStockCount = products?.filter(p => p.stock_quantity <= (p.low_stock_threshold || 10)).length || 0;
+            // Revenue trend from analytics
+            const revenueTrend = (analytics?.sales_trend || []).map(
+                (t: { date: string; revenue: string }) => ({
+                    date: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                    amount: parseFloat(t.revenue)
+                })
+            );
 
-            // 2. Fetch Bills (Sales) Stats
-            let query = supabase
-                .from('bills')
-                .select('*')
-                .in('shop_id', shopIdsToQuery)
-                .order('created_at', { ascending: false });
-
-            if (timeRange === '7d') {
-                const date = new Date();
-                date.setDate(date.getDate() - 7);
-                query = query.gte('created_at', date.toISOString());
-            } else if (timeRange === '30d') {
-                const date = new Date();
-                date.setDate(date.getDate() - 30);
-                query = query.gte('created_at', date.toISOString());
-            }
-
-            const { data: bills, error: billsError } = await query;
-
-            if (billsError) throw billsError;
-
-            // Calculate Revenue and Orders
-            const totalOrders = bills?.length || 0;
-            const totalRevenue = bills?.reduce((sum, bill) => sum + (bill.total_amount || 0), 0) || 0;
-
-            // Shop Ranking (Aggregation)
-            let shopRanking: any[] = [];
-            if (selectedShopId === 'all' && shops.length > 0) {
-                const shopMap = new Map();
-                shops.forEach(s => shopMap.set(s.id, { id: s.id, name: s.name, revenue: 0, orders: 0 }));
-
-                bills?.forEach(bill => {
-                    const existing = shopMap.get(bill.shop_id);
-                    if (existing) {
-                        existing.revenue += (bill.total_amount || 0);
-                        existing.orders += 1;
-                    }
-                });
-
-                shopRanking = Array.from(shopMap.values()).sort((a, b) => b.revenue - a.revenue);
-            }
-
-
-            // Process Revenue Trend (Group by date)
-            const trendMap = new Map();
-            bills?.forEach(bill => {
-                const date = new Date(bill.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                trendMap.set(date, (trendMap.get(date) || 0) + bill.total_amount);
-            });
-
-            const revenueTrend = Array.from(trendMap.entries())
-                .map(([date, amount]) => ({ date, amount }))
-                .reverse(); // Simplified reverse, usually explicit sort is better by date key
-
-            // Category Distribution
-            const categoryMap = new Map();
-            products?.forEach(p => {
+            // Category distribution from products
+            const categoryMap = new Map<string, number>();
+            products.forEach((p: { category?: string }) => {
                 const cat = p.category || 'Uncategorized';
                 categoryMap.set(cat, (categoryMap.get(cat) || 0) + 1);
             });
             const salesByCategory = Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value }));
 
-            // Recent Orders
-            const recentOrders = bills?.slice(0, 5) || [];
+            // Top products from analytics
+            const topProducts = (analytics?.top_products || []).map(
+                (p: { name: string; units_sold: string; revenue: string }) => ({
+                    id: p.name,
+                    name: p.name,
+                    price: parseFloat(p.revenue),
+                    stock_quantity: parseFloat(p.units_sold),
+                    category: 'Top Selling'
+                })
+            );
 
-            // Top Products
-            const topProducts = products?.sort((a, b) => (b.price || 0) - (a.price || 0)).slice(0, 5) || [];
-
+            // Recent orders (bills from analytics - simplified)
+            const recentOrders: any[] = [];
 
             setStats({
                 totalRevenue,
@@ -192,7 +140,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ orgId, isOwner,
                 salesByCategory,
                 recentOrders,
                 topProducts,
-                shopRanking
+                shopRanking: []
             });
 
         } catch (error) {

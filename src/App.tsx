@@ -1,5 +1,6 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import PageTransition from './components/PageTransition';
 import { DarkModeProvider } from './context/DarkModeContext';
 import { AuthProvider } from './context/AuthContext';
 import HomePage from './pages/HomePage';
@@ -14,33 +15,37 @@ import BillingPage from './pages/admin/BillingPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import MultiBranchPage from './pages/features/MultiBranchPage';
 import AIInsightsPage from './pages/features/AIInsightsPage';
+import HadoopAnalyticsPage from './pages/admin/HadoopAnalyticsPage';
 import POSBillingPage from './pages/features/POSBillingPage';
 import SecurityPage from './pages/features/SecurityPage';
 
 function App() {
+  const location = useLocation();
+
   return (
     <DarkModeProvider>
       <AuthProvider>
-        <Router>
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/demo" element={<DemoPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/admin/employees" element={<EmployeesPage />} />
-              <Route path="/admin/branches" element={<BranchesPage />} />
-              <Route path="/admin/inventory" element={<InventoryPage />} />
-              <Route path="/admin/billing" element={<BillingPage />} />
-              <Route path="/admin/settings" element={<SettingsPage />} />
-              <Route path="/features/multi-branch" element={<MultiBranchPage />} />
-              <Route path="/features/ai-insights" element={<AIInsightsPage />} />
-              <Route path="/features/pos-billing" element={<POSBillingPage />} />
-              <Route path="/features/security" element={<SecurityPage />} />
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+          <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+              <Route path="/" element={<PageTransition><HomePage /></PageTransition>} />
+              <Route path="/demo" element={<PageTransition><DemoPage /></PageTransition>} />
+              <Route path="/signup" element={<PageTransition><SignupPage /></PageTransition>} />
+              <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+              <Route path="/dashboard" element={<PageTransition><DashboardPage /></PageTransition>} />
+              <Route path="/admin/employees" element={<PageTransition><EmployeesPage /></PageTransition>} />
+              <Route path="/admin/branches" element={<PageTransition><BranchesPage /></PageTransition>} />
+              <Route path="/admin/inventory" element={<PageTransition><InventoryPage /></PageTransition>} />
+              <Route path="/admin/billing" element={<PageTransition><BillingPage /></PageTransition>} />
+              <Route path="/admin/settings" element={<PageTransition><SettingsPage /></PageTransition>} />
+              <Route path="/admin/hadoop-analytics" element={<PageTransition><HadoopAnalyticsPage /></PageTransition>} />
+              <Route path="/features/multi-branch" element={<PageTransition><MultiBranchPage /></PageTransition>} />
+              <Route path="/features/ai-insights" element={<PageTransition><AIInsightsPage /></PageTransition>} />
+              <Route path="/features/pos-billing" element={<PageTransition><POSBillingPage /></PageTransition>} />
+              <Route path="/features/security" element={<PageTransition><SecurityPage /></PageTransition>} />
             </Routes>
-          </div>
-        </Router>
+          </AnimatePresence>
+        </div>
       </AuthProvider>
     </DarkModeProvider>
   );

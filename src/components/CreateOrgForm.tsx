@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { azureApi } from '../lib/api';
 import { Loader2, ArrowRight } from 'lucide-react';
 
 interface CreateOrgFormProps {
@@ -14,37 +14,16 @@ export const CreateOrgForm: React.FC<CreateOrgFormProps> = ({ userId }) => {
     const handleCreateOrg = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!orgName.trim()) return;
-
         setLoading(true);
         setError('');
-
         try {
-            // 1. Create Organization
-            const { data: shopData, error: shopError } = await supabase
-                .from('shops')
-                .insert({
-                    name: orgName,
-                    manager_id: userId
-                })
-                .select()
-                .single();
-
-            if (shopError) throw shopError;
-
-            // 2. Link User to Organization
-            const { error: userError } = await supabase
-                .from('users')
-                .update({ organization_id: shopData.id })
-                .eq('id', userId);
-
-            if (userError) throw userError;
-
-            // 3. Reload to refresh AuthContext
+            const { error } = await azureApi.createShop(orgName);
+            if (error) throw new Error(error);
             window.location.reload();
-
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to create organization. Please try again.';
             console.error('Error creating organization:', err);
-            setError(err.message || 'Failed to create organization. Please try again.');
+            setError(message);
         } finally {
             setLoading(false);
         }

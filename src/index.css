@@ -30,12 +30,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: #a78bfa;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #7c3aed;
 }
 
 /* Dark mode scrollbar */
@@ -44,11 +44,11 @@
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #6b7280;
+  background: #8b5cf6;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #a78bfa;
 }
 
 /* Focus styles */
@@ -90,7 +90,7 @@
   }
   
   .text-gradient {
-    @apply bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-violet-600 to-pink-500 bg-clip-text text-transparent;
   }
   
   /* Header animations */

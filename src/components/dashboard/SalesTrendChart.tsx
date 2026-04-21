@@ -8,7 +8,8 @@ import {
     Tooltip,
     ResponsiveContainer
 } from 'recharts';
-import { supabase } from '../../lib/supabase';
+import { azureApi } from '../../lib/api';
+import { GlassCard } from '../ui/GlassCard';
 import { TrendingUp } from 'lucide-react';
 
 interface SalesTrendChartProps {
@@ -31,30 +32,17 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orgId }) => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                // Fetch last 20 sales metrics
-                const { data: metrics, error } = await supabase
-                    .from('ml_metrics')
-                    .select('value, created_at') // created_at is better for history than updated_at sometimes
-                    .eq('organization_id', orgId)
-                    .eq('metric_type', 'total_sales')
-                    .order('created_at', { ascending: false })
-                    .limit(20);
+                const { data: analytics, error } = await azureApi.getAnalytics(orgId);
+                if (error) throw new Error(error);
 
-                if (error) throw error;
+                const trend = analytics?.sales_trend || [];
+                const formattedData = trend.map((t: { date: string; revenue: string }) => ({
+                    time: new Date(t.date).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+                    value: parseFloat(t.revenue),
+                    fullDate: new Date(t.date).toLocaleDateString()
+                }));
 
-                if (metrics && mounted) {
-                    const formattedData = metrics
-                        .reverse() // Show oldest to newest
-                        .map((m) => {
-                            const date = new Date(m.created_at);
-                            return {
-                                time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                                value: m.value,
-                                fullDate: date.toLocaleString()
-                            };
-                        });
-                    setData(formattedData);
-                }
+                if (mounted) setData(formattedData);
             } catch (err) {
                 console.error('Error loading sales trend:', err);
             } finally {
@@ -63,52 +51,11 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orgId }) => {
         };
 
         fetchData();
-
-        // Subscribe to new data
-        const channel = supabase
-            .channel('realtime-sales-trend')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT', // We only care about new snapshots for history? 
-                    // Actually, ml_metrics for 'total_sales' is often UPSERTED (updated).
-                    // If we update the SAME row (same org_id & metric_type), we lose history in that table 
-                    // UNLESS we are storing a timeseries.
-                    // CHECK: ml_service.py upserts on (organization_id, metric_type).
-                    // RESULT: We only have 1 row per org for 'total_sales'. We CANNOT show a trend from history 
-                    // if we only store the current value.
-                    // FIX: For the purpose of this visual analytics task (Academic/Demo), 
-                    // we should simulate history on the frontend by keeping an array of received updates,
-                    // OR the backend should have been inserting new rows.
-                    // Given constraints "Do NOT modify backend tables", we must build the trend LIVE.
-                    // IE: We start with empty/current, and append points as they come in.
-                    schema: 'public',
-                    table: 'ml_metrics',
-                    filter: `organization_id=eq.${orgId}`,
-                },
-                (payload) => {
-                    if (payload.new && (payload.new as any).metric_type === 'total_sales') {
-                        const newVal = (payload.new as any).value;
-                        const date = new Date();
-                        const newPoint = {
-                            time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            value: newVal,
-                            fullDate: date.toLocaleString()
-                        };
-
-                        setData(prev => {
-                            const newData = [...prev, newPoint];
-                            if (newData.length > 20) return newData.slice(newData.length - 20);
-                            return newData;
-                        });
-                    }
-                }
-            )
-            .subscribe();
+        const interval = setInterval(fetchData, 30000);
 
         return () => {
             mounted = false;
-            supabase.removeChannel(channel);
+            clearInterval(interval);
         };
     }, [orgId]);
 
@@ -117,7 +64,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orgId }) => {
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <GlassCard className="p-6">
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
@@ -151,11 +98,11 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orgId }) => {
                             tickFormatter={(val) => `₹${val}`}
                         />
                         <Tooltip
-                            contentStyle={{ backgroundColor: '#1F2937', color: '#F3F4F6', borderRadius: '8px', border: 'none' }}
+                            contentStyle={{ backgroundColor: '#1F2937', color: '#F3F4F6', borderRadius: '8px', border: 'none', backdropFilter: 'blur(5px)' }}
                             itemStyle={{ color: '#F3F4F6' }}
                             labelStyle={{ color: '#9CA3AF' }}
                             formatter={(value: any) => [`₹${value}`, 'Sales']}
-                            labelFormatter={(label, payload) => payload[0]?.payload.fullDate}
+                            labelFormatter={(_, payload) => payload[0]?.payload.fullDate}
                         />
                         <Area
                             type="monotone"
@@ -169,6 +116,6 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orgId }) => {
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
-        </div>
+        </GlassCard>
     );
 };
