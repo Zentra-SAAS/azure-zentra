@@ -51,16 +51,29 @@ app.post('/api/auth/signup', async (req, res) => {
         for await (const _ of usersTable.listEntities({ queryOptions: { filter: `email eq '${email}'` } }))
             return res.status(400).json({ error: 'Email already registered' });
 
-        const shopId = uuidv4(), userId = uuidv4();
-        const orgCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-        await getTable('Shops').createEntity({ partitionKey: 'shops', rowKey: shopId, name: shopName, managerId: userId, orgCode, createdAt: new Date().toISOString() });
+        const passkey = Math.random().toString(36).substring(2, 8).toUpperCase();
+        await getTable('Shops').createEntity({ partitionKey: 'shops', rowKey: shopId, name: shopName, managerId: userId, orgCode, passkey, createdAt: new Date().toISOString() });
 
         const passwordHash = await bcrypt.hash(password, 10);
         await usersTable.createEntity({ partitionKey: 'users', rowKey: userId, email, name, role: 'admin', passwordHash, organizationId: shopId, createdAt: new Date().toISOString() });
 
         const token = signToken({ id: userId, email, role: 'admin', organizationId: shopId });
-        res.status(201).json({ token, user: { id: userId, email, name, role: 'admin', organization: { id: shopId, name: shopName } } });
+        res.status(201).json({ 
+            token, 
+            user: { 
+                id: userId, 
+                email, 
+                name, 
+                role: 'admin', 
+                organization: { 
+                    id: shopId, 
+                    name: shopName, 
+                    org_code: orgCode, 
+                    passkey, 
+                    created_at: new Date().toISOString() 
+                } 
+            } 
+        });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Signup failed' }); }
 });
 
@@ -75,11 +88,20 @@ app.post('/api/auth/login', async (req, res) => {
         if (!found || !await bcrypt.compare(password, found.passwordHash))
             return res.status(401).json({ error: 'Invalid credentials' });
 
-        let orgName = '';
-        try { const s = await getTable('Shops').getEntity('shops', found.organizationId); orgName = s.name; } catch {}
+        let org = { id: found.organizationId, name: '' };
+        try { 
+            const s = await getTable('Shops').getEntity('shops', found.organizationId); 
+            org = { 
+                id: found.organizationId, 
+                name: s.name, 
+                org_code: s.orgCode, 
+                passkey: s.passkey, 
+                created_at: s.createdAt 
+            }; 
+        } catch {}
 
         const token = signToken({ id: found.rowKey, email: found.email, role: found.role, organizationId: found.organizationId });
-        res.json({ token, user: { id: found.rowKey, email: found.email, name: found.name, role: found.role, organization: { id: found.organizationId, name: orgName } } });
+        res.json({ token, user: { id: found.rowKey, email: found.email, name: found.name, role: found.role, organization: org } });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Login failed' }); }
 });
 
