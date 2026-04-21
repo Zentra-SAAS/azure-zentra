@@ -10,6 +10,10 @@ interface TextRevealProps {
 export const TextReveal: React.FC<TextRevealProps> = ({ text, className = "", delay = 0 }) => {
     const controls = useAnimation();
 
+    if (!text || typeof text !== 'string') {
+        return <span className={className}>{text || ''}</span>;
+    }
+
     // Split text into words and characters
     // formatting needs to be preserved
 
