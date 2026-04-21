@@ -108,7 +108,13 @@ const CameraController = ({ mouseX, mouseY }: { mouseX?: MotionValue<number>, mo
 const Hero3D: React.FC<Hero3DProps> = ({ mouseX, mouseY }) => {
     return (
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-blue-50 to-teal-50 dark:from-gray-950 dark:to-black overflow-hidden">
-            <Canvas dpr={[1, 2]}>
+            <Canvas 
+                dpr={[1, 2]} 
+                gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+                onCreated={({ gl }) => {
+                    gl.setClearColor(0x000000, 0);
+                }}
+            >
                 <PerspectiveCamera makeDefault position={[0, 0, 15]} fov={50} />
                 <CameraController mouseX={mouseX} mouseY={mouseY} />
                 <ambientLight intensity={0.5} />

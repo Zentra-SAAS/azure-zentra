@@ -10,16 +10,13 @@ interface TextRevealProps {
 export const TextReveal: React.FC<TextRevealProps> = ({ text, className = "", delay = 0 }) => {
     const controls = useAnimation();
 
-    if (!text || typeof text !== 'string') {
-        return <span className={className}>{text || ''}</span>;
-    }
-
-    // Split text into words and characters
-    // formatting needs to be preserved
-
     useEffect(() => {
         controls.start("visible");
     }, [controls]);
+
+    if (typeof text !== 'string') {
+        return <span className={className}>{String(text || '')}</span>;
+    }
 
     const containerVariants: Variants = {
         hidden: {},
@@ -45,29 +42,35 @@ export const TextReveal: React.FC<TextRevealProps> = ({ text, className = "", de
         },
     };
 
-    return (
-        <motion.span
-            className={`inline-block ${className}`}
-            variants={containerVariants}
-            initial="hidden"
-            animate={controls}
-        >
-            {text.split(" ").map((word, i) => (
-                <React.Fragment key={i}>
-                    <span className="inline-block whitespace-nowrap">
-                        {word.split("").map((char, charIndex) => (
-                            <motion.span
-                                key={`${char}-${charIndex}`}
-                                className="inline-block"
-                                variants={charVariants}
-                            >
-                                {char}
-                            </motion.span>
-                        ))}
-                    </span>
-                    {i < text.split(" ").length - 1 && <span className="inline-block"> </span>}
-                </React.Fragment>
-            ))}
-        </motion.span>
-    );
+    try {
+        const words = text.split(" ");
+        return (
+            <motion.span
+                className={`inline-block ${className}`}
+                variants={containerVariants}
+                initial="hidden"
+                animate={controls}
+            >
+                {words.map((word, i) => (
+                    <React.Fragment key={i}>
+                        <span className="inline-block whitespace-nowrap">
+                            {(word || "").split("").map((char, charIndex) => (
+                                <motion.span
+                                    key={`${char}-${charIndex}`}
+                                    className="inline-block"
+                                    variants={charVariants}
+                                >
+                                    {char}
+                                </motion.span>
+                            ))}
+                        </span>
+                        {i < words.length - 1 && <span className="inline-block"> </span>}
+                    </React.Fragment>
+                ))}
+            </motion.span>
+        );
+    } catch (e) {
+        console.error("TextReveal Error:", e);
+        return <span className={className}>{text}</span>;
+    }
 };
