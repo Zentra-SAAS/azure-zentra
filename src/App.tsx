@@ -15,7 +15,7 @@ import BillingPage from './pages/admin/BillingPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import MultiBranchPage from './pages/features/MultiBranchPage';
 import AIInsightsPage from './pages/features/AIInsightsPage';
-import HadoopAnalyticsPage from './pages/admin/HadoopAnalyticsPage';
+import AzureAnalyticsPage from './pages/admin/HadoopAnalyticsPage';
 import POSBillingPage from './pages/features/POSBillingPage';
 import SecurityPage from './pages/features/SecurityPage';
 
@@ -38,7 +38,7 @@ function App() {
               <Route path="/admin/inventory" element={<PageTransition><InventoryPage /></PageTransition>} />
               <Route path="/admin/billing" element={<PageTransition><BillingPage /></PageTransition>} />
               <Route path="/admin/settings" element={<PageTransition><SettingsPage /></PageTransition>} />
-              <Route path="/admin/hadoop-analytics" element={<PageTransition><HadoopAnalyticsPage /></PageTransition>} />
+              <Route path="/admin/azure-analytics" element={<PageTransition><AzureAnalyticsPage /></PageTransition>} />
               <Route path="/features/multi-branch" element={<PageTransition><MultiBranchPage /></PageTransition>} />
               <Route path="/features/ai-insights" element={<PageTransition><AIInsightsPage /></PageTransition>} />
               <Route path="/features/pos-billing" element={<PageTransition><POSBillingPage /></PageTransition>} />
