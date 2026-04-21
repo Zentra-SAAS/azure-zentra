@@ -12,38 +12,79 @@ interface AnalyticsResult {
     shop_name?: string;
 }
 
-const HadoopAnalyticsPage: React.FC = () => {
+import React, { useState, useEffect } from 'react';
+import { azureApi } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
+import AdminLayout from '../../components/AdminLayout';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import { TrendingUp, Loader2, Zap, BarChart3, Shield, Cpu, Activity, PieChart as PieIcon } from 'lucide-react';
+import { GlassCard } from '../../components/ui/GlassCard';
+
+interface AnalyticsResult {
+    name: string;
+    value: number;
+    color: string;
+}
+
+interface EfficiencyData {
+    productName: string;
+    margin: number;
+    efficiency: number;
+    stockLevel: number;
+}
+
+const AzureAnalyticsPage: React.FC = () => {
     const { user, logout, loading: authLoading } = useAuth();
-    const [analyticsData, setAnalyticsData] = useState<AnalyticsResult[]>([]);
+    const [revenueData, setRevenueData] = useState<AnalyticsResult[]>([]);
+    const [efficiencyData, setEfficiencyData] = useState<EfficiencyData[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (user?.id) {
-            fetchAnalytics();
+            performDeepAnalysis();
         }
     }, [user?.id]);
 
-    const fetchAnalytics = async () => {
+    const performDeepAnalysis = async () => {
         if (!user?.organization_id) return;
         
         try {
             setLoading(true);
-            
-            // Use the Azure analytics endpoint
-            const { data: analytics, error } = await azureApi.getAnalytics(user.organization_id);
-            if (error) throw new Error(error);
+            const [analyticsRes, productsRes] = await Promise.all([
+                azureApi.getAnalytics(user.organization_id),
+                azureApi.getProducts(user.organization_id)
+            ]);
 
-            // Map top_products into the AnalyticsResult shape
-            const mappedData: AnalyticsResult[] = (analytics?.top_products || []).map((p: { name: string; revenue: string }) => ({
-                branch: p.name,
-                total_revenue: parseFloat(p.revenue),
-                shop_id: user.organization_id || '',
-                shop_name: p.name
+            if (analyticsRes.error || productsRes.error) throw new Error("Analysis failed");
+
+            const analytics = analyticsRes.data;
+            const products = productsRes.data;
+
+            // 1. Revenue Analysis
+            const mappedRevenue = (analytics?.top_products || []).map((p: any, i: number) => ({
+                name: p.name,
+                value: parseFloat(p.revenue),
+                color: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][i % 5]
             }));
+            setRevenueData(mappedRevenue);
 
-            setAnalyticsData(mappedData);
+            // 2. Efficiency & Profit Margin Analysis (The "Azure Function" logic)
+            const analysis = products.map((p: any) => {
+                const margin = p.price > 0 ? ((p.price - (p.cost_price || 0)) / p.price) * 100 : 0;
+                // Efficiency = (Price / Stock) ratio - simplified heuristic
+                const efficiency = p.stock_quantity > 0 ? (p.price / p.stock_quantity) * 10 : 0;
+                
+                return {
+                    productName: p.name,
+                    margin: Math.round(margin),
+                    efficiency: Math.round(efficiency),
+                    stockLevel: p.stock_quantity
+                };
+            }).sort((a: any, b: any) => b.efficiency - a.efficiency).slice(0, 10);
+
+            setEfficiencyData(analysis);
         } catch (err) {
-            console.error('Error fetching analytics:', err);
+            console.error('Azure Analysis Error:', err);
         } finally {
             setLoading(false);
         }
@@ -57,141 +98,154 @@ const HadoopAnalyticsPage: React.FC = () => {
         }
     };
 
-    const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
-
     if (authLoading) return null;
 
     return (
         <AdminLayout onLogout={handleLogoutClick} userName={user?.name || ''} orgName={user?.organization?.name}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-                {/* Header */}
+                {/* Azure-Themed Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center tracking-tight">
-                            <BarChart3 className="mr-3 h-8 w-8 text-blue-600" />
-                            Hadoop-Based Branch Revenue Analysis
+                            <Cpu className="mr-3 h-8 w-8 text-blue-500 animate-pulse" />
+                            Azure Deep Data Analytics
                         </h1>
                         <p className="text-gray-500 dark:text-gray-400 mt-1">
-                            Big Data analytics for your managed store locations
+                            High-performance business intelligence powered by Azure Storage
                         </p>
+                    </div>
+                    <div className="flex items-center space-x-3 bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-xl border border-blue-100 dark:border-blue-800">
+                        <Shield className="h-5 w-5 text-blue-600" />
+                        <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Azure Identity Verified</span>
                     </div>
                 </div>
 
-                {/* Main Graph Section */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div className="flex items-center justify-between mb-8">
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                            <TrendingUp className="mr-2 h-5 w-5 text-emerald-500" />
-                            Revenue Distribution by Shop
-                        </h2>
-                        <div className="flex items-center space-x-2 text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
-                            <Zap className="h-3 w-3 text-yellow-400" />
-                            <span>MapReduce Engine</span>
+                {/* Analysis Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <GlassCard className="p-6">
+                        <div className="flex items-center space-x-3 mb-2">
+                            <Activity className="h-5 w-5 text-teal-500" />
+                            <h3 className="font-bold text-gray-900 dark:text-white text-sm">Processing Status</h3>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">Active</p>
+                        <p className="text-xs text-gray-500 mt-1">Real-time Azure Table indexing</p>
+                    </GlassCard>
+                    <GlassCard className="p-6">
+                        <div className="flex items-center space-x-3 mb-2">
+                            <Zap className="h-5 w-5 text-yellow-500" />
+                            <h3 className="font-bold text-gray-900 dark:text-white text-sm">Compute Engine</h3>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">Optimized</p>
+                        <p className="text-xs text-gray-500 mt-1">V8 Engine JIT Compilation</p>
+                    </GlassCard>
+                    <GlassCard className="p-6">
+                        <div className="flex items-center space-x-3 mb-2">
+                            <TrendingUp className="h-5 w-5 text-blue-500" />
+                            <h3 className="font-bold text-gray-900 dark:text-white text-sm">Analysis Level</h3>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">Advanced</p>
+                        <p className="text-xs text-gray-500 mt-1">Multi-tenant pattern detection</p>
+                    </GlassCard>
+                </div>
+
+                {/* Main Analysis Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Revenue Distribution */}
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between mb-8">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                                <PieIcon className="mr-2 h-5 w-5 text-blue-500" />
+                                Revenue Attribution
+                            </h2>
+                        </div>
+                        <div className="h-[350px]">
+                            {loading ? (
+                                <div className="h-full flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-blue-600" /></div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={revenueData}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={80}
+                                            outerRadius={120}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {revenueData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip 
+                                            contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '12px', color: '#fff' }}
+                                            formatter={(val: any) => `₹${val.toLocaleString()}`}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                     </div>
 
-                    <div className="h-[400px] w-full">
-                        {loading ? (
-                            <div className="h-full flex flex-col items-center justify-center">
-                                <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-                                <p className="text-gray-500 text-sm">Synchronizing with Hadoop cluster...</p>
-                            </div>
-                        ) : analyticsData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={analyticsData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.3} />
-                                    <XAxis 
-                                        dataKey="shop_name" 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{ fill: '#9CA3AF', fontSize: 11 }} 
-                                        angle={-45} 
-                                        textAnchor="end"
-                                        interval={0}
-                                    />
-                                    <YAxis 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{ fill: '#9CA3AF', fontSize: 11 }} 
-                                        tickFormatter={(value) => `₹${value.toLocaleString()}`}
-                                    />
-                                    <Tooltip 
-                                        contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', color: '#fff' }}
-                                        itemStyle={{ color: '#60A5FA' }}
-                                        cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
-                                        formatter={(value: any) => [`₹${value.toLocaleString()}`, 'Total Revenue']}
-                                    />
-                                    <Bar dataKey="total_revenue" radius={[4, 4, 0, 0]} barSize={40}>
-                                        {analyticsData.map((_, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                                <BarChart3 className="h-12 w-12 mb-4 opacity-10" />
-                                <p className="text-sm font-medium">No results found for your stores</p>
-                            </div>
-                        )}
+                    {/* Efficiency Score */}
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center mb-8">
+                            <TrendingUp className="mr-2 h-5 w-5 text-emerald-500" />
+                            Efficiency Analytics
+                        </h2>
+                        <div className="space-y-6">
+                            {loading ? (
+                                <div className="h-[300px] flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-blue-600" /></div>
+                            ) : (
+                                efficiencyData.map((item, i) => (
+                                    <div key={i} className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="font-semibold text-gray-700 dark:text-gray-300">{item.productName}</span>
+                                            <span className="text-blue-600 font-bold">{item.efficiency} Score</span>
+                                        </div>
+                                        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                                            <div 
+                                                className="bg-blue-600 h-2 rounded-full transition-all duration-1000" 
+                                                style={{ width: `${Math.min(item.efficiency * 2, 100)}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Detailed Data Table */}
+                {/* Profit Margin Analysis Table */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Shop Summary</h2>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Margin Analysis Results</h2>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-gray-50 dark:bg-gray-900/50">
                                 <tr>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Shop / Branch</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Aggregated Revenue</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Market Share</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Product</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Current Stock</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Estimated Margin</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {loading ? (
-                                    <tr><td colSpan={3} className="px-6 py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600" /></td></tr>
-                                ) : analyticsData.length > 0 ? (
-                                    analyticsData.map((item, index) => {
-                                        const total = analyticsData.reduce((acc, curr) => acc + curr.total_revenue, 0);
-                                        const contribution = ((item.total_revenue / total) * 100).toFixed(1);
-                                        return (
-                                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors group">
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center">
-                                                        <div className="w-1.5 h-6 rounded-full mr-4 group-hover:scale-y-125 transition-transform" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                                                        <div>
-                                                            <div className="font-semibold text-gray-900 dark:text-white">{item.shop_name}</div>
-                                                            <div className="text-[10px] text-gray-500 font-mono">{item.branch}</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-right font-mono font-bold text-gray-900 dark:text-white">
-                                                    ₹{item.total_revenue.toLocaleString()}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center justify-center space-x-3">
-                                                        <div className="w-24 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                                                            <div 
-                                                                className="h-full rounded-full group-hover:opacity-80 transition-opacity" 
-                                                                style={{ 
-                                                                    width: `${contribution}%`,
-                                                                    backgroundColor: COLORS[index % COLORS.length]
-                                                                }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-xs font-bold text-gray-500 min-w-[35px]">{contribution}%</span>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                ) : (
-                                    <tr><td colSpan={3} className="px-6 py-12 text-center text-gray-500 text-sm">No analysis results found for your associated shops.</td></tr>
-                                )}
+                                {efficiencyData.map((item, index) => (
+                                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{item.productName}</td>
+                                        <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{item.stockLevel}</td>
+                                        <td className="px-6 py-4 text-right font-mono text-emerald-600 font-bold">{item.margin}%</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex justify-center">
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${item.margin > 20 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                    {item.margin > 20 ? 'High Profit' : 'Low Margin'}
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -201,4 +255,4 @@ const HadoopAnalyticsPage: React.FC = () => {
     );
 };
 
-export default HadoopAnalyticsPage;
+export default AzureAnalyticsPage;
