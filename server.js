@@ -51,7 +51,11 @@ app.post('/api/auth/signup', async (req, res) => {
         for await (const _ of usersTable.listEntities({ queryOptions: { filter: `email eq '${email}'` } }))
             return res.status(400).json({ error: 'Email already registered' });
 
+        const userId = uuidv4();
+        const shopId = uuidv4();
+        const orgCode = Math.random().toString(36).substring(2, 8).toUpperCase();
         const passkey = Math.random().toString(36).substring(2, 8).toUpperCase();
+
         await getTable('Shops').createEntity({ partitionKey: 'shops', rowKey: shopId, name: shopName, managerId: userId, orgCode, passkey, createdAt: new Date().toISOString() });
 
         const passwordHash = await bcrypt.hash(password, 10);
