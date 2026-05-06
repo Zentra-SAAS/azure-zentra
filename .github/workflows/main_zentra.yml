@@ -52,4 +52,4 @@ jobs:
           app-name: 'zentra'
           slot-name: 'Production'
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_672FD5B129BE463985535DB10339ED3D }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_029474E4D99745BFBEC87B6A0F63060B }}
